@@ -40,3 +40,25 @@ hist <file> -n
 # sort output in descending order (default: ascending)
 hist <file> -d
 ```
+
+## Benchmarks
+
+I use [nucgen](https://crates.io/crates/nucgen) to generate a random 100M line [FASTQ file](https://en.wikipedia.org/wiki/FASTQ_format).
+I then just pipe it into different tools and compare their performance.
+
+I am measuring the performance of equivalent `| sort | uniq -c | sort -n` functionality.
+
+Tools compared:
+- [hist](https://github.com/noamteyssier/hist-rs)
+- [cuniq](https://lib.rs/crates/cuniq)
+- [huniq](https://lib.rs/crates/huniq)
+- [sortuniq](https://lib.rs/crates/sortuniq)
+- Naive Implementation (coreutils `cat <file> | sort | uniq -c | sort -n`)
+
+| Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
+|:---|---:|---:|---:|---:|
+| `hist` | 200.3 ± 3.3 | 195.6 | 208.7 | 1.00 |
+| `cuniq` | 434.3 ± 6.6 | 424.7 | 442.9 | 2.17 ± 0.05 |
+| `huniq` | 2375.5 ± 43.8 | 2328.1 | 2450.3 | 11.86 ± 0.30 |
+| `sortuniq` | 2593.2 ± 28.4 | 2535.7 | 2640.9 | 12.95 ± 0.26 |
+| `naive` | 5409.9 ± 23.3 | 5378.0 | 5453.3 | 27.01 ± 0.47 |

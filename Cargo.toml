@@ -17,4 +17,6 @@ hashbrown = "0.16.0"
 regex = "1.12.2"
 
 [profile.release]
-debug = true
+lto = true
+codegen-units = 1
+debug = false
