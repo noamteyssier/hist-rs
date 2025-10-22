@@ -9,9 +9,10 @@ use anyhow::Result;
 use bstr::io::BufReadExt;
 use bumpalo::Bump;
 use clap::Parser;
+use hashbrown::{HashMap, hash_map::RawEntryMut};
 use regex::bytes::Regex;
 
-type Map<'a> = hashbrown::HashMap<&'a [u8], usize>;
+type Map<'a> = HashMap<&'a [u8], usize>;
 type FlatCounts<'a> = Vec<(&'a [u8], usize)>;
 
 fn build_map<'a, R: BufReadExt>(
@@ -39,11 +40,11 @@ fn build_map<'a, R: BufReadExt>(
         // manual entry handling
         match map.raw_entry_mut().from_key(line) {
             // exists - increment count
-            hashbrown::hash_map::RawEntryMut::Occupied(mut entry) => {
+            RawEntryMut::Occupied(mut entry) => {
                 *entry.get_mut() += 1;
             }
             // new entry - allocate into arena and insert slice
-            hashbrown::hash_map::RawEntryMut::Vacant(entry) => {
+            RawEntryMut::Vacant(entry) => {
                 let owned = arena.alloc_slice_copy(line);
                 entry.insert(owned, 1);
             }
