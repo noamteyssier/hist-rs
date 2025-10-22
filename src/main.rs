@@ -9,19 +9,14 @@ fn main() -> Result<()> {
     let input = stdin();
     let mut reader = BufReader::new(input);
     let mut bufstr = String::default();
-    let mut map = HashMap::new();
+    let mut map: HashMap<String, usize> = HashMap::new();
 
     while reader.read_line(&mut bufstr)? > 0 {
         let key = bufstr.trim();
         if key.is_empty() {
             continue;
         }
-        if !map.contains_key(key) {
-            map.insert(key.to_string(), 0);
-        }
-        let value = map.get_mut(key).unwrap();
-        *value += 1;
-
+        *map.entry_ref(key).or_default() += 1;
         bufstr.clear();
     }
 
