@@ -1,5 +1,8 @@
 # hist
 
+[![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE.md)
+[![Crates.io](https://img.shields.io/crates/d/hist-rs?color=orange&label=crates.io)](https://crates.io/crates/hist-rs)
+
 A high-throughput CLI to count unique lines.
 
 This is a standalone tool with equivalent functionality to `cat <file> | sort | uniq -c | sort -n`.
