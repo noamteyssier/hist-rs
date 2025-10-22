@@ -1,7 +1,12 @@
+use std::{
+    fs::File,
+    io::{BufReader, BufWriter, Write, stdin, stdout},
+};
+
 use anyhow::Result;
 use bstr::io::BufReadExt;
+use clap::Parser;
 use hashbrown::HashMap;
-use std::io::{BufReader, BufWriter, Write, stdin, stdout};
 
 fn build_map<R: BufReadExt>(reader: &mut R, map: &mut HashMap<Vec<u8>, usize>) -> Result<()> {
     reader.for_byte_line(|line: &[u8]| {
@@ -30,12 +35,43 @@ fn write_collection<W: Write>(wtr: &mut W, collection: Vec<(Vec<u8>, usize)>) ->
     Ok(())
 }
 
-fn main() -> Result<()> {
-    let input = stdin();
-    let output = stdout();
+#[derive(Parser)]
+struct Args {
+    input: Option<String>,
+    output: Option<String>,
+}
+impl Args {
+    fn match_input(&self) -> Result<Box<dyn BufReadExt>> {
+        match &self.input {
+            Some(path) => {
+                let handle = File::open(path).map(BufReader::new)?;
+                Ok(Box::new(handle))
+            }
+            None => {
+                let handle = BufReader::new(stdin());
+                Ok(Box::new(handle))
+            }
+        }
+    }
 
-    let mut in_handle = BufReader::new(input);
-    let mut out_handle = BufWriter::new(output);
+    fn match_output(&self) -> Result<Box<dyn Write>> {
+        match &self.output {
+            Some(path) => {
+                let handle = File::create(path).map(BufWriter::new)?;
+                Ok(Box::new(handle))
+            }
+            None => {
+                let handle = BufWriter::new(stdout());
+                Ok(Box::new(handle))
+            }
+        }
+    }
+}
+
+fn main() -> Result<()> {
+    let args = Args::parse();
+    let mut in_handle = args.match_input()?;
+    let mut out_handle = args.match_output()?;
     let mut map: HashMap<Vec<u8>, usize> = HashMap::new();
 
     build_map(&mut in_handle, &mut map)?;
