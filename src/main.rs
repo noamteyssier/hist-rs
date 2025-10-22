@@ -1,4 +1,5 @@
 use std::{
+    cmp::Ordering,
     fs::File,
     io::{BufReader, BufWriter, Write, stdin, stdout},
     usize,
@@ -36,16 +37,28 @@ fn build_map<R: BufReadExt>(
     Ok(())
 }
 
-fn sort_collection(map: Map, descending: bool, skip_sorting: bool) -> FlatCounts {
+fn sort_func<T: Ord>(a: &T, b: &T) -> Ordering {
+    a.cmp(b)
+}
+
+fn sort_collection(
+    map: Map,
+    descending: bool,
+    skip_sorting: bool,
+    sort_by_name: bool,
+) -> FlatCounts {
     let mut collection = map.into_iter().collect::<Vec<_>>();
-    if !skip_sorting {
-        if descending {
-            collection.sort_unstable_by(|a, b| b.1.cmp(&a.1));
-        } else {
-            collection.sort_unstable_by(|a, b| a.1.cmp(&b.1));
+    if skip_sorting {
+        collection
+    } else {
+        match (sort_by_name, descending) {
+            (true, false) => collection.sort_unstable_by(|a, b| sort_func(&a.0, &b.0)),
+            (true, true) => collection.sort_unstable_by(|a, b| sort_func(&b.0, &a.0)),
+            (false, false) => collection.sort_unstable_by(|a, b| sort_func(&a.1, &b.1)),
+            (false, true) => collection.sort_unstable_by(|a, b| sort_func(&b.1, &a.1)),
         }
+        collection
     }
-    collection
 }
 
 fn write_flatcounts<W: Write>(
@@ -111,6 +124,10 @@ struct Args {
     /// Skip sorting
     #[clap(short = 's', long, conflicts_with = "descending")]
     skip_sorting: bool,
+
+    /// Sort by entry name
+    #[clap(short = 'n', long)]
+    sort_by_name: bool,
 }
 impl Args {
     fn match_input(&self) -> Result<Box<dyn BufReadExt>> {
@@ -172,7 +189,8 @@ fn main() -> Result<()> {
     if args.unique {
         write_entries(&mut out_handle, &map)?;
     } else {
-        let sorted_collection = sort_collection(map, args.descending, args.skip_sorting);
+        let sorted_collection =
+            sort_collection(map, args.descending, args.skip_sorting, args.sort_by_name);
         write_flatcounts(
             &mut out_handle,
             sorted_collection,
