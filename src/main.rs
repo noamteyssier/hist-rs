@@ -36,12 +36,14 @@ fn build_map<R: BufReadExt>(
     Ok(())
 }
 
-fn sort_collection(map: Map, descending: bool) -> FlatCounts {
+fn sort_collection(map: Map, descending: bool, skip_sorting: bool) -> FlatCounts {
     let mut collection = map.into_iter().collect::<Vec<_>>();
-    if descending {
-        collection.sort_unstable_by(|a, b| b.1.cmp(&a.1));
-    } else {
-        collection.sort_unstable_by(|a, b| a.1.cmp(&b.1));
+    if !skip_sorting {
+        if descending {
+            collection.sort_unstable_by(|a, b| b.1.cmp(&a.1));
+        } else {
+            collection.sort_unstable_by(|a, b| a.1.cmp(&b.1));
+        }
     }
     collection
 }
@@ -105,6 +107,10 @@ struct Args {
     /// Sort descending by abundance
     #[clap(short = 'd', long)]
     descending: bool,
+
+    /// Skip sorting
+    #[clap(short = 's', long, conflicts_with = "descending")]
+    skip_sorting: bool,
 }
 impl Args {
     fn match_input(&self) -> Result<Box<dyn BufReadExt>> {
@@ -166,7 +172,7 @@ fn main() -> Result<()> {
     if args.unique {
         write_entries(&mut out_handle, &map)?;
     } else {
-        let sorted_collection = sort_collection(map, args.descending);
+        let sorted_collection = sort_collection(map, args.descending, args.skip_sorting);
         write_flatcounts(
             &mut out_handle,
             sorted_collection,
