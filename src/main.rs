@@ -36,9 +36,13 @@ fn build_map<R: BufReadExt>(
     Ok(())
 }
 
-fn sort_collection(map: Map) -> FlatCounts {
+fn sort_collection(map: Map, descending: bool) -> FlatCounts {
     let mut collection = map.into_iter().collect::<Vec<_>>();
-    collection.sort_unstable_by(|a, b| a.1.cmp(&b.1));
+    if descending {
+        collection.sort_unstable_by(|a, b| b.1.cmp(&a.1));
+    } else {
+        collection.sort_unstable_by(|a, b| a.1.cmp(&b.1));
+    }
     collection
 }
 
@@ -97,6 +101,10 @@ struct Args {
     /// Filter out entries with abundance greater than MAX
     #[clap(short = 'M', long)]
     max: Option<usize>,
+
+    /// Sort descending by abundance
+    #[clap(short = 'd', long)]
+    descending: bool,
 }
 impl Args {
     fn match_input(&self) -> Result<Box<dyn BufReadExt>> {
@@ -158,7 +166,7 @@ fn main() -> Result<()> {
     if args.unique {
         write_entries(&mut out_handle, &map)?;
     } else {
-        let sorted_collection = sort_collection(map);
+        let sorted_collection = sort_collection(map, args.descending);
         write_flatcounts(
             &mut out_handle,
             sorted_collection,
