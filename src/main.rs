@@ -1,6 +1,7 @@
 use std::{
     fs::File,
     io::{BufReader, BufWriter, Write, stdin, stdout},
+    usize,
 };
 
 use anyhow::Result;
@@ -25,10 +26,16 @@ fn sort_collection(map: Map) -> FlatCounts {
     collection
 }
 
-fn write_flatcounts<W: Write>(wtr: &mut W, collection: FlatCounts) -> Result<()> {
+fn write_flatcounts<W: Write>(
+    wtr: &mut W,
+    collection: FlatCounts,
+    max: usize,
+    min: usize,
+) -> Result<()> {
     let mut writer = csv::WriterBuilder::new().delimiter(b'\t').from_writer(wtr);
     collection
         .into_iter()
+        .filter(|(_, value)| *value <= max && *value >= min)
         .try_for_each(|(key, value)| -> Result<()> {
             let record: (usize, &str) = (value, std::str::from_utf8(&key)?);
             writer.serialize(&record)?;
@@ -58,6 +65,14 @@ struct Args {
     /// Skip counting and just write unique lines
     #[clap(short, long)]
     unique: bool,
+
+    /// Filter out entries with abundance less than MIN
+    #[clap(short = 'm', long)]
+    min: Option<usize>,
+
+    /// Filter out entries with abundance greater than MAX
+    #[clap(short = 'M', long)]
+    max: Option<usize>,
 }
 impl Args {
     fn match_input(&self) -> Result<Box<dyn BufReadExt>> {
@@ -99,7 +114,12 @@ fn main() -> Result<()> {
         write_entries(&mut out_handle, &map)?;
     } else {
         let sorted_collection = sort_collection(map);
-        write_flatcounts(&mut out_handle, sorted_collection)?;
+        write_flatcounts(
+            &mut out_handle,
+            sorted_collection,
+            args.max.unwrap_or(usize::MAX),
+            args.min.unwrap_or(0),
+        )?;
     }
 
     Ok(())
