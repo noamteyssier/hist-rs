@@ -2,6 +2,12 @@
 name = "hist-rs"
 version = "0.1.0"
 edition = "2024"
+description = "High-throughput method to count abundance of unique line in the style of `sort | uniq -c`"
+readme = "README.md"
+license = "MIT"
+repository = "https://github.com/noamteyssier/hist-rs"
+categories = ["command-line-utilities"]
+keywords = ["histogram", "sort", "count", "uniq", "unique"]
 
 [[bin]]
 name = "hist"
