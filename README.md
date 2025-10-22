@@ -49,7 +49,7 @@ I then just pipe it into different tools and compare their performance.
 I am measuring the performance of equivalent `| sort | uniq -c | sort -n` functionality.
 
 Tools compared:
-- [hist](https://github.com/noamteyssier/hist-rs)
+- [hist](https://lib.rs/crates/hist-rs)
 - [cuniq](https://lib.rs/crates/cuniq)
 - [huniq](https://lib.rs/crates/huniq)
 - [sortuniq](https://lib.rs/crates/sortuniq)
