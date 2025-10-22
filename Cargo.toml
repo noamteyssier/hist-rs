@@ -8,7 +8,6 @@ name = "hist"
 path = "src/main.rs"
 
 [dependencies]
-ahash = "0.8.12"
 anyhow = "1.0.100"
 bstr = "1.12.0"
 bumpalo = "3.19.0"
