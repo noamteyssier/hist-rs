@@ -7,31 +7,48 @@ use std::{
 
 use anyhow::Result;
 use bstr::io::BufReadExt;
+use bumpalo::Bump;
 use clap::Parser;
-use hashbrown::HashMap;
 use regex::bytes::Regex;
 
-type Map = HashMap<Vec<u8>, usize>;
-type FlatCounts = Vec<(Vec<u8>, usize)>;
+type Map<'a> = hashbrown::HashMap<&'a [u8], usize>;
+type FlatCounts<'a> = Vec<(&'a [u8], usize)>;
 
-fn build_map<R: BufReadExt>(
+fn build_map<'a, R: BufReadExt>(
     reader: &mut R,
-    map: &mut Map,
+    map: &mut Map<'a>,
+    arena: &'a Bump,
     include: Option<Regex>,
     exclude: Option<Regex>,
 ) -> Result<()> {
     reader.for_byte_line(|line: &[u8]| {
+        // exclude entries on regex match
         if let Some(ref regex) = exclude
             && regex.is_match(line)
         {
             return Ok(true);
         }
+
+        // include entries on regex match
         if let Some(ref regex) = include
             && !regex.is_match(line)
         {
             return Ok(true);
         }
-        *map.entry_ref(line).or_default() += 1;
+
+        // manual entry handling
+        match map.raw_entry_mut().from_key(line) {
+            // exists - increment count
+            hashbrown::hash_map::RawEntryMut::Occupied(mut entry) => {
+                *entry.get_mut() += 1;
+            }
+            // new entry - allocate into arena and insert slice
+            hashbrown::hash_map::RawEntryMut::Vacant(entry) => {
+                let owned = arena.alloc_slice_copy(line);
+                entry.insert(owned, 1);
+            }
+        }
+
         Ok(true)
     })?;
     Ok(())
@@ -177,11 +194,14 @@ fn main() -> Result<()> {
     let args = Args::parse();
     let mut in_handle = args.match_input()?;
     let mut out_handle = args.match_output()?;
-    let mut map = HashMap::new();
+
+    let arena = Bump::new();
+    let mut map = Map::default();
 
     build_map(
         &mut in_handle,
         &mut map,
+        &arena,
         args.include_regex()?,
         args.exclude_regex()?,
     )?;
