@@ -25,7 +25,7 @@ fn sort_collection(map: Map) -> FlatCounts {
     collection
 }
 
-fn write_collection<W: Write>(wtr: &mut W, collection: FlatCounts) -> Result<()> {
+fn write_flatcounts<W: Write>(wtr: &mut W, collection: FlatCounts) -> Result<()> {
     let mut writer = csv::WriterBuilder::new().delimiter(b'\t').from_writer(wtr);
     collection
         .into_iter()
@@ -38,10 +38,26 @@ fn write_collection<W: Write>(wtr: &mut W, collection: FlatCounts) -> Result<()>
     Ok(())
 }
 
+fn write_entries<W: Write>(wtr: &mut W, map: &Map) -> Result<()> {
+    let mut writer = csv::WriterBuilder::new().delimiter(b'\t').from_writer(wtr);
+    map.iter().try_for_each(|(key, _)| -> Result<()> {
+        let record: &str = std::str::from_utf8(key)?;
+        writer.serialize(&record)?;
+        Ok(())
+    })?;
+    writer.flush()?;
+    Ok(())
+}
+
 #[derive(Parser)]
 struct Args {
     input: Option<String>,
+
     output: Option<String>,
+
+    /// Skip counting and just write unique lines
+    #[clap(short, long)]
+    unique: bool,
 }
 impl Args {
     fn match_input(&self) -> Result<Box<dyn BufReadExt>> {
@@ -78,8 +94,13 @@ fn main() -> Result<()> {
     let mut map = HashMap::new();
 
     build_map(&mut in_handle, &mut map)?;
-    let sorted_collection = sort_collection(map);
-    write_collection(&mut out_handle, sorted_collection)?;
+
+    if args.unique {
+        write_entries(&mut out_handle, &map)?;
+    } else {
+        let sorted_collection = sort_collection(map);
+        write_flatcounts(&mut out_handle, sorted_collection)?;
+    }
 
     Ok(())
 }
