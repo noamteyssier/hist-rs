@@ -2,7 +2,7 @@
 
 A high-throughput CLI to count unique lines.
 
-This is a standalone tool with equivalent functionality to `| sort | uniq -c | sort -n`.
+This is a standalone tool with equivalent functionality to `cat <file> | sort | uniq -c | sort -n`.
 
 ## Installation
 
@@ -43,17 +43,18 @@ hist <file> -d
 
 ## Benchmarks
 
-I use [nucgen](https://crates.io/crates/nucgen) to generate a random 100M line [FASTQ file](https://en.wikipedia.org/wiki/FASTQ_format).
-I then just pipe it into different tools and compare their performance.
+I use [`nucgen`](https://crates.io/crates/nucgen) to generate a random 100M line [FASTQ file](https://en.wikipedia.org/wiki/FASTQ_format) and pipe it into different tools to compare their throughput with [`hyperfine`](https://lib.rs/crates/hyperfine).
 
-I am measuring the performance of equivalent `| sort | uniq -c | sort -n` functionality.
+I am measuring the performance of equivalent `cat <file> | sort | uniq -c | sort -n` functionality.
 
 Tools compared:
-- [hist](https://lib.rs/crates/hist-rs)
-- [cuniq](https://lib.rs/crates/cuniq)
-- [huniq](https://lib.rs/crates/huniq)
-- [sortuniq](https://lib.rs/crates/sortuniq)
+- [`hist`](https://lib.rs/crates/hist-rs)
+- [`cuniq`](https://lib.rs/crates/cuniq)
+- [`huniq`](https://lib.rs/crates/huniq)
+- [`sortuniq`](https://lib.rs/crates/sortuniq)
 - Naive Implementation (coreutils `cat <file> | sort | uniq -c | sort -n`)
+
+### Benchmark Table
 
 | Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
 |:---|---:|---:|---:|---:|
