@@ -8,12 +8,28 @@ use anyhow::Result;
 use bstr::io::BufReadExt;
 use clap::Parser;
 use hashbrown::HashMap;
+use regex::bytes::Regex;
 
 type Map = HashMap<Vec<u8>, usize>;
 type FlatCounts = Vec<(Vec<u8>, usize)>;
 
-fn build_map<R: BufReadExt>(reader: &mut R, map: &mut Map) -> Result<()> {
+fn build_map<R: BufReadExt>(
+    reader: &mut R,
+    map: &mut Map,
+    include: Option<Regex>,
+    exclude: Option<Regex>,
+) -> Result<()> {
     reader.for_byte_line(|line: &[u8]| {
+        if let Some(ref regex) = exclude
+            && regex.is_match(line)
+        {
+            return Ok(true);
+        }
+        if let Some(ref regex) = include
+            && !regex.is_match(line)
+        {
+            return Ok(true);
+        }
         *map.entry_ref(line).or_default() += 1;
         Ok(true)
     })?;
@@ -66,6 +82,14 @@ struct Args {
     #[clap(short, long)]
     unique: bool,
 
+    /// Only include incoming entries that match a regex pattern
+    #[clap(short = 'i', long)]
+    include: Option<String>,
+
+    /// Exclude incoming entries that match a regex pattern
+    #[clap(short = 'e', long)]
+    exclude: Option<String>,
+
     /// Filter out entries with abundance less than MIN
     #[clap(short = 'm', long)]
     min: Option<usize>,
@@ -100,6 +124,22 @@ impl Args {
             }
         }
     }
+
+    fn include_regex(&self) -> Result<Option<Regex>> {
+        if let Some(pattern) = &self.include {
+            Ok(Some(Regex::new(pattern)?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn exclude_regex(&self) -> Result<Option<Regex>> {
+        if let Some(pattern) = &self.exclude {
+            Ok(Some(Regex::new(pattern)?))
+        } else {
+            Ok(None)
+        }
+    }
 }
 
 fn main() -> Result<()> {
@@ -108,7 +148,12 @@ fn main() -> Result<()> {
     let mut out_handle = args.match_output()?;
     let mut map = HashMap::new();
 
-    build_map(&mut in_handle, &mut map)?;
+    build_map(
+        &mut in_handle,
+        &mut map,
+        args.include_regex()?,
+        args.exclude_regex()?,
+    )?;
 
     if args.unique {
         write_entries(&mut out_handle, &map)?;
