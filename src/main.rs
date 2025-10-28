@@ -185,7 +185,7 @@ struct Args {
 
     /// Shows the last-k entries and a count of the other entries
     #[clap(short = 'k', long, conflicts_with_all = ["min", "max", "skip_sorting"])]
-    k: Option<usize>,
+    last_k: Option<usize>,
 }
 impl Args {
     fn match_input(&self) -> Result<Box<dyn BufReadExt>> {
@@ -230,8 +230,8 @@ impl Args {
         }
     }
 
-    fn k(&self) -> usize {
-        self.k.unwrap_or(0)
+    fn last_k(&self) -> usize {
+        self.last_k.unwrap_or(0)
     }
 }
 
@@ -257,8 +257,8 @@ fn main() -> Result<()> {
         let sorted_collection =
             sort_collection(map, args.descending, args.skip_sorting, args.sort_by_name);
 
-        if args.k() > 0 {
-            write_topk_flatcounts(&mut out_handle, sorted_collection, args.k())?;
+        if args.last_k() > 0 {
+            write_topk_flatcounts(&mut out_handle, sorted_collection, args.last_k())?;
         } else {
             write_flatcounts(
                 &mut out_handle,
