@@ -64,6 +64,7 @@ Tools compared:
 - [`sortuniq`](https://lib.rs/crates/sortuniq)
 - [`awk`](https://www.gnu.org/software/gawk/manual/gawk.html)
 - Naive Implementation (coreutils `sort <file | uniq -c | sort -n`)
+- Naive implementation ([rust-coreutils](https://github.com/uutils/coreutils) `sort <file | uniq -c | sort -n`)
 - Naive no cache (LC_ALL=C)
 - Naive no cache size hints (LC_ALL=C; size hints for `sort`)
 
@@ -75,15 +76,16 @@ For the specific commands used please check the [`justfile`](./justfile).
 
 | Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
 |:---|---:|---:|---:|---:|
-| `hist` | 228.1 ± 7.7 | 223.9 | 252.6 | 1.00 |
-| `cuniq` | 532.2 ± 11.0 | 514.0 | 554.9 | 2.33 ± 0.09 |
-| `naive-no-locale-size-hints` | 1164.7 ± 32.1 | 1119.3 | 1227.2 | 5.11 ± 0.22 |
-| `naive-no-locale` | 1180.7 ± 32.7 | 1128.6 | 1228.7 | 5.18 ± 0.23 |
-| `awk` | 1248.1 ± 18.8 | 1239.1 | 1300.6 | 5.47 ± 0.20 |
-| `huniq` | 2812.5 ± 83.7 | 2721.0 | 2957.6 | 12.33 ± 0.56 |
-| `sortuniq` | 3108.2 ± 34.8 | 3056.8 | 3168.2 | 13.63 ± 0.48 |
-| `naive` | 5591.6 ± 89.7 | 5478.3 | 5717.0 | 24.52 ± 0.92 |
-| `naive-size-hints` | 5628.2 ± 155.1 | 5444.7 | 5863.3 | 24.68 ± 1.08 |
+| `hist` | 231.5 ± 4.6 | 226.4 | 243.8 | 1.00 |
+| `cuniq` | 561.9 ± 12.4 | 538.2 | 576.9 | 2.43 ± 0.07 |
+| `naive-rust` | 890.1 ± 4.5 | 883.6 | 897.5 | 3.84 ± 0.08 |
+| `naive-no-locale-size-hints` | 1179.2 ± 40.2 | 1132.8 | 1241.6 | 5.09 ± 0.20 |
+| `naive-no-locale` | 1219.5 ± 28.7 | 1188.2 | 1276.6 | 5.27 ± 0.16 |
+| `awk` | 1265.4 ± 7.1 | 1254.5 | 1278.5 | 5.47 ± 0.11 |
+| `huniq` | 2814.8 ± 67.8 | 2735.9 | 2951.7 | 12.16 ± 0.38 |
+| `sortuniq` | 3166.9 ± 71.3 | 3121.1 | 3351.3 | 13.68 ± 0.41 |
+| `naive-size-hints` | 5610.1 ± 53.8 | 5542.2 | 5691.7 | 24.23 ± 0.53 |
+| `naive` | 5637.6 ± 67.2 | 5527.9 | 5781.1 | 24.35 ± 0.56 |
 
 ### Benchmarks (deduplicate stream)
 
