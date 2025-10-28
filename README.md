@@ -58,10 +58,12 @@ Tools compared:
 - [`cuniq`](https://lib.rs/crates/cuniq)
 - [`huniq`](https://lib.rs/crates/huniq)
 - [`sortuniq`](https://lib.rs/crates/sortuniq)
-- [`awk`](https://www.gnu.org/software/gawk/manual/gawk.html) ( `awk '{ x[$0]++ } END { for(y in x) { print y, x[y] }}' <file | sort -k2,2nr` )
+- [`awk`](https://www.gnu.org/software/gawk/manual/gawk.html)
 - Naive Implementation (coreutils `sort <file | uniq -c | sort -n`)
-- Naive no cache (LC_ALL=C) (`export LC_ALL=C; sort -n <file | uniq -c | sort -n`)
-- Naive no cache size hints (LC_ALL=C) (`export LC_ALL=C; sort -S 1G -n <file | uniq -c | sort -S 1G -n`)
+- Naive no cache (LC_ALL=C)
+- Naive no cache size hints (LC_ALL=C; size hints for `sort`)
+
+For the specific commands used please check the [`justfile`](./justfile).
 
 ### Benchmark Table
 
