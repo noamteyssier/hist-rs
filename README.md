@@ -5,7 +5,7 @@
 
 A high-throughput CLI to count unique lines.
 
-This is a standalone tool with equivalent functionality to `cat <file> | sort | uniq -c | sort -n`.
+This is a standalone tool with equivalent functionality to `sort | uniq -c | sort -n`.
 
 ## Installation
 
