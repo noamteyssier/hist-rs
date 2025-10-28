@@ -49,7 +49,7 @@ hist <file> -k <k>
 
 ## Benchmarks
 
-I use [`nucgen`](https://crates.io/crates/nucgen) to generate a random 100M line [FASTQ file](https://en.wikipedia.org/wiki/FASTQ_format) and pipe it into different tools to compare their throughput with [`hyperfine`](https://lib.rs/crates/hyperfine).
+I use [`nucgen`](https://crates.io/crates/nucgen) to generate a random 1M line [FASTQ file](https://en.wikipedia.org/wiki/FASTQ_format) and pipe it into different tools to compare their throughput with [`hyperfine`](https://lib.rs/crates/hyperfine).
 
 I am measuring the performance of equivalent `cat <file> | sort | uniq -c | sort -n` functionality.
 
