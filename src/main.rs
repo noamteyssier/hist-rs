@@ -98,6 +98,42 @@ fn write_flatcounts<W: Write>(
     Ok(())
 }
 
+fn write_topk_flatcounts<W: Write>(wtr: &mut W, collection: FlatCounts, k: usize) -> Result<()> {
+    let mut writer = csv::WriterBuilder::new().delimiter(b'\t').from_writer(wtr);
+    // set the left-bound for the top-k elements
+    let lbound = collection.len().saturating_sub(k);
+
+    // sums the counts of the bottom-(len-k) elements
+    let other_sum: usize = collection.iter().take(lbound).map(|(_, value)| value).sum();
+    let other_sum_record = (other_sum, &format!("other lines ({} elements)", lbound));
+    let mut other_sum_written = false;
+
+    // Write all records except the bottom-(len-k) elements
+    collection
+        .into_iter()
+        .skip(lbound)
+        .try_for_each(|(key, value)| -> Result<()> {
+            // place the other sum record if it hasn't been written yet
+            if !other_sum_written && value > other_sum {
+                writer.serialize(&other_sum_record)?;
+                other_sum_written = true;
+            }
+
+            // write the current record
+            let record: (usize, &str) = (value, std::str::from_utf8(&key)?);
+            writer.serialize(&record)?;
+            Ok(())
+        })?;
+
+    // write the other sum record if it hasn't been written yet
+    if !other_sum_written {
+        writer.serialize(&other_sum_record)?;
+    }
+
+    writer.flush()?;
+    Ok(())
+}
+
 fn write_entries<W: Write>(wtr: &mut W, map: &Map) -> Result<()> {
     let mut writer = csv::WriterBuilder::new().delimiter(b'\t').from_writer(wtr);
     map.iter().try_for_each(|(key, _)| -> Result<()> {
@@ -146,6 +182,10 @@ struct Args {
     /// Sort by entry name
     #[clap(short = 'n', long)]
     sort_by_name: bool,
+
+    /// Shows the last-k entries and a count of the other entries
+    #[clap(short = 'k', long, conflicts_with_all = ["min", "max", "skip_sorting"])]
+    last_k: Option<usize>,
 }
 impl Args {
     fn match_input(&self) -> Result<Box<dyn BufReadExt>> {
@@ -189,6 +229,10 @@ impl Args {
             Ok(None)
         }
     }
+
+    fn last_k(&self) -> usize {
+        self.last_k.unwrap_or(0)
+    }
 }
 
 fn main() -> Result<()> {
@@ -212,12 +256,17 @@ fn main() -> Result<()> {
     } else {
         let sorted_collection =
             sort_collection(map, args.descending, args.skip_sorting, args.sort_by_name);
-        write_flatcounts(
-            &mut out_handle,
-            sorted_collection,
-            args.max.unwrap_or(usize::MAX),
-            args.min.unwrap_or(0),
-        )?;
+
+        if args.last_k() > 0 {
+            write_topk_flatcounts(&mut out_handle, sorted_collection, args.last_k())?;
+        } else {
+            write_flatcounts(
+                &mut out_handle,
+                sorted_collection,
+                args.max.unwrap_or(usize::MAX),
+                args.min.unwrap_or(0),
+            )?;
+        }
     }
 
     Ok(())
