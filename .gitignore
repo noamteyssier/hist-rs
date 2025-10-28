@@ -2,3 +2,4 @@
 Cargo.lock
 *.fq
 output.txt
+benchmarks*.md
