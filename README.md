@@ -5,7 +5,7 @@
 
 A high-throughput CLI to count unique lines.
 
-This is a standalone tool with equivalent functionality to `cat <file> | sort | uniq -c | sort -n`.
+This is a standalone tool with equivalent functionality to `sort | uniq -c | sort -n`.
 
 ## Installation
 
@@ -49,23 +49,31 @@ hist <file> -k <k>
 
 ## Benchmarks
 
-I use [`nucgen`](https://crates.io/crates/nucgen) to generate a random 100M line [FASTQ file](https://en.wikipedia.org/wiki/FASTQ_format) and pipe it into different tools to compare their throughput with [`hyperfine`](https://lib.rs/crates/hyperfine).
+I use [`nucgen`](https://crates.io/crates/nucgen) to generate a random 1M line [FASTQ file](https://en.wikipedia.org/wiki/FASTQ_format) and pipe it into different tools to compare their throughput with [`hyperfine`](https://lib.rs/crates/hyperfine).
 
-I am measuring the performance of equivalent `cat <file> | sort | uniq -c | sort -n` functionality.
+I am measuring the performance of equivalent `sort <file | uniq -c | sort -n` functionality.
 
 Tools compared:
 - [`hist`](https://lib.rs/crates/hist-rs)
 - [`cuniq`](https://lib.rs/crates/cuniq)
 - [`huniq`](https://lib.rs/crates/huniq)
 - [`sortuniq`](https://lib.rs/crates/sortuniq)
-- Naive Implementation (coreutils `cat <file> | sort | uniq -c | sort -n`)
+- [`awk`](https://www.gnu.org/software/gawk/manual/gawk.html)
+- Naive Implementation (coreutils `sort <file | uniq -c | sort -n`)
+- Naive no cache (LC_ALL=C)
+- Naive no cache size hints (LC_ALL=C; size hints for `sort`)
+
+For the specific commands used please check the [`justfile`](./justfile).
 
 ### Benchmark Table
 
 | Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
 |:---|---:|---:|---:|---:|
-| `hist` | 200.3 ± 3.3 | 195.6 | 208.7 | 1.00 |
-| `cuniq` | 434.3 ± 6.6 | 424.7 | 442.9 | 2.17 ± 0.05 |
-| `huniq` | 2375.5 ± 43.8 | 2328.1 | 2450.3 | 11.86 ± 0.30 |
-| `sortuniq` | 2593.2 ± 28.4 | 2535.7 | 2640.9 | 12.95 ± 0.26 |
-| `naive` | 5409.9 ± 23.3 | 5378.0 | 5453.3 | 27.01 ± 0.47 |
+| `hist` | 238.4 ± 3.9 | 233.2 | 246.8 | 1.00 |
+| `cuniq` | 537.4 ± 5.5 | 531.2 | 547.0 | 2.25 ± 0.04 |
+| `naive-no-cache-size-hints` | 1184.2 ± 27.6 | 1146.1 | 1223.1 | 4.97 ± 0.14 |
+| `naive-no-cache` | 1198.2 ± 22.7 | 1146.6 | 1220.6 | 5.03 ± 0.13 |
+| `awk` | 1245.0 ± 1.8 | 1242.3 | 1248.7 | 5.22 ± 0.09 |
+| `huniq` | 2896.9 ± 36.9 | 2854.5 | 2988.6 | 12.15 ± 0.25 |
+| `sortuniq` | 3290.3 ± 97.9 | 3173.1 | 3517.5 | 13.80 ± 0.47 |
+| `naive` | 5594.4 ± 53.5 | 5524.5 | 5723.8 | 23.47 ± 0.45 |
