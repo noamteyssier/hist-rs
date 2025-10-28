@@ -1,7 +1,7 @@
 use std::{
     cmp::Ordering,
     fs::File,
-    io::{BufReader, BufWriter, Write, stdin, stdout},
+    io::{self, BufReader, BufWriter, Write, stdin, stdout},
     usize,
 };
 
@@ -9,9 +9,10 @@ use anyhow::Result;
 use bstr::io::BufReadExt;
 use bumpalo::Bump;
 use clap::Parser;
-use hashbrown::{HashMap, hash_map::RawEntryMut};
+use hashbrown::{HashMap, HashSet, hash_map::RawEntryMut};
 use regex::bytes::Regex;
 
+type Set<'a> = HashSet<&'a [u8]>;
 type Map<'a> = HashMap<&'a [u8], usize>;
 type FlatCounts<'a> = Vec<(&'a [u8], usize)>;
 
@@ -52,6 +53,48 @@ fn build_map<'a, R: BufReadExt>(
 
         Ok(true)
     })?;
+    Ok(())
+}
+
+fn stream_unique<R: BufReadExt, W: Write>(
+    reader: &mut R,
+    writer: &mut W,
+    arena: &'_ Bump,
+    include: Option<Regex>,
+    exclude: Option<Regex>,
+) -> Result<()> {
+    let mut csv_writer = csv::Writer::from_writer(writer);
+    let mut set = Set::default();
+    reader.for_byte_line(|line: &[u8]| {
+        // exclude entries on regex match
+        if let Some(ref regex) = exclude
+            && regex.is_match(line)
+        {
+            return Ok(true);
+        }
+
+        // include entries on regex match
+        if let Some(ref regex) = include
+            && !regex.is_match(line)
+        {
+            return Ok(true);
+        }
+
+        if !set.contains(line) {
+            let owned = arena.alloc_slice_copy(line);
+
+            // Safety: This is safe because we've already hashed the line into the set and it is not present
+            unsafe {
+                set.insert_unique_unchecked(owned);
+            }
+
+            let line_str = std::str::from_utf8(line).map_err(|e| io::Error::other(e))?;
+            csv_writer.serialize(line_str)?;
+        }
+
+        Ok(true)
+    })?;
+    csv_writer.flush()?;
     Ok(())
 }
 
@@ -134,25 +177,14 @@ fn write_topk_flatcounts<W: Write>(wtr: &mut W, collection: FlatCounts, k: usize
     Ok(())
 }
 
-fn write_entries<W: Write>(wtr: &mut W, map: &Map) -> Result<()> {
-    let mut writer = csv::WriterBuilder::new().delimiter(b'\t').from_writer(wtr);
-    map.iter().try_for_each(|(key, _)| -> Result<()> {
-        let record: &str = std::str::from_utf8(key)?;
-        writer.serialize(&record)?;
-        Ok(())
-    })?;
-    writer.flush()?;
-    Ok(())
-}
-
 #[derive(Parser)]
 struct Args {
     input: Option<String>,
 
     output: Option<String>,
 
-    /// Skip counting and just write unique lines
-    #[clap(short, long)]
+    /// Skip counting and just write unique lines in the same order as input
+    #[clap(short = 'u', long)]
     unique: bool,
 
     /// Only include incoming entries that match a regex pattern
@@ -241,19 +273,26 @@ fn main() -> Result<()> {
     let mut out_handle = args.match_output()?;
 
     let arena = Bump::new();
-    let mut map = Map::default();
-
-    build_map(
-        &mut in_handle,
-        &mut map,
-        &arena,
-        args.include_regex()?,
-        args.exclude_regex()?,
-    )?;
 
     if args.unique {
-        write_entries(&mut out_handle, &map)?;
+        stream_unique(
+            &mut in_handle,
+            &mut out_handle,
+            &arena,
+            args.include_regex()?,
+            args.exclude_regex()?,
+        )?;
     } else {
+        let mut map = Map::default();
+
+        build_map(
+            &mut in_handle,
+            &mut map,
+            &arena,
+            args.include_regex()?,
+            args.exclude_regex()?,
+        )?;
+
         let sorted_collection =
             sort_collection(map, args.descending, args.skip_sorting, args.sort_by_name);
 
