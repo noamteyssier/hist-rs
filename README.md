@@ -42,6 +42,9 @@ hist <file> -n
 
 # sort output in descending order (default: ascending)
 hist <file> -d
+
+# show the last-k entries and a count of the other entries (lines + number of elements)
+hist <file> -k <k>
 ```
 
 ## Benchmarks
