@@ -7,6 +7,8 @@ A high-throughput CLI to count unique lines.
 
 This is a standalone tool with equivalent functionality to `sort | uniq -c | sort -n`.
 
+There is also support for deduplicating an input stream (i.e. only printing unique lines).
+
 ## Installation
 
 ```bash
@@ -22,7 +24,7 @@ hist <file>
 # count unique lines from stdin
 /bin/cat <file> | hist
 
-# skip counting and just write unique lines
+# skip counting and just write unique lines (in the same order as they appear)
 hist <file> -u
 
 # exclude lines matching a pattern while counting
@@ -49,6 +51,8 @@ hist <file> -k <k>
 
 ## Benchmarks
 
+### Benchmarks `(sort | uniq -c | sort -n)`
+
 I use [`nucgen`](https://crates.io/crates/nucgen) to generate a random 1M line [FASTQ file](https://en.wikipedia.org/wiki/FASTQ_format) and pipe it into different tools to compare their throughput with [`hyperfine`](https://lib.rs/crates/hyperfine).
 
 I am measuring the performance of equivalent `sort <file | uniq -c | sort -n` functionality.
@@ -65,7 +69,7 @@ Tools compared:
 
 For the specific commands used please check the [`justfile`](./justfile).
 
-### Benchmark Table
+#### Benchmark Table `(sort | uniq -c | sort -n)`
 
 > Measured on MacBook M3 Pro
 
@@ -80,3 +84,32 @@ For the specific commands used please check the [`justfile`](./justfile).
 | `sortuniq` | 3108.2 ± 34.8 | 3056.8 | 3168.2 | 13.63 ± 0.48 |
 | `naive` | 5591.6 ± 89.7 | 5478.3 | 5717.0 | 24.52 ± 0.92 |
 | `naive-size-hints` | 5628.2 ± 155.1 | 5444.7 | 5863.3 | 24.68 ± 1.08 |
+
+### Benchmarks (deduplicate stream)
+
+I use [`nucgen`](https://crates.io/crates/nucgen) to generate a random 1M line [FASTQ file](https://en.wikipedia.org/wiki/FASTQ_format) and pipe it into different tools to compare their throughput with [`hyperfine`](https://lib.rs/crates/hyperfine).
+
+I am measuring the performance of deduplicating an input stream (i.e. only printing unique lines).
+
+Tools compared:
+- [`hist`](https://lib.rs/crates/hist-rs)
+- [`huniq`](https://lib.rs/crates/huniq)
+- [`uq`](https://lib.rs/crates/uq)
+- [`ripuniq`](https://lib.rs/crates/ripuniq)
+- [`unic`](https://github.com/donatj/unic)
+- [`awk`](https://www.gnu.org/software/gawk/manual/gawk.html)
+
+For the specific commands used please check the [`justfile`](./justfile).
+
+#### Benchmark Table (deduplicate stream)
+
+> Measured on MacBook M3 Pro
+
+| Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
+|:---|---:|---:|---:|---:|
+| `hist` | 180.6 ± 17.1 | 171.4 | 245.0 | 1.00 |
+| `ripuniq` | 226.1 ± 2.6 | 223.8 | 233.0 | 1.25 ± 0.12 |
+| `awk` | 1299.0 ± 10.4 | 1289.3 | 1320.3 | 7.19 ± 0.68 |
+| `huniq` | 2418.6 ± 41.5 | 2365.8 | 2488.9 | 13.39 ± 1.29 |
+| `uq` | 2990.3 ± 61.9 | 2899.9 | 3120.2 | 16.56 ± 1.61 |
+| `unic` | 7947.0 ± 36.0 | 7869.3 | 7979.1 | 44.01 ± 4.17 |
