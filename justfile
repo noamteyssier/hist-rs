@@ -29,6 +29,7 @@ bench-stream:
         --shell=bash \
         -n "hist" "hist -u <{{input_file}} >{{output_file}}" \
         -n "huniq" "huniq <{{input_file}} >{{output_file}}" \
+        -n "runiq" "runiq -fquick <{{input_file}} >{{output_file}}" \
         -n "uq" "uq <{{input_file}} >{{output_file}}" \
         -n "ripuniq" "ripuniq <{{input_file}} >{{output_file}}" \
         -n "unic" "~/go/bin/unic <{{input_file}} >{{output_file}}" \
