@@ -96,6 +96,7 @@ I am measuring the performance of deduplicating an input stream (i.e. only print
 Tools compared:
 - [`hist`](https://lib.rs/crates/hist-rs)
 - [`huniq`](https://lib.rs/crates/huniq)
+- [`runiq`](https://lib.rs/crates/runiq)
 - [`uq`](https://lib.rs/crates/uq)
 - [`ripuniq`](https://lib.rs/crates/ripuniq)
 - [`unic`](https://github.com/donatj/unic)
@@ -109,9 +110,10 @@ For the specific commands used please check the [`justfile`](./justfile).
 
 | Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
 |:---|---:|---:|---:|---:|
-| `hist` | 180.6 ± 17.1 | 171.4 | 245.0 | 1.00 |
-| `ripuniq` | 226.1 ± 2.6 | 223.8 | 233.0 | 1.25 ± 0.12 |
-| `awk` | 1299.0 ± 10.4 | 1289.3 | 1320.3 | 7.19 ± 0.68 |
-| `huniq` | 2418.6 ± 41.5 | 2365.8 | 2488.9 | 13.39 ± 1.29 |
-| `uq` | 2990.3 ± 61.9 | 2899.9 | 3120.2 | 16.56 ± 1.61 |
-| `unic` | 7947.0 ± 36.0 | 7869.3 | 7979.1 | 44.01 ± 4.17 |
+| `hist` | 180.6 ± 5.8 | 167.2 | 188.9 | 1.00 |
+| `ripuniq` | 215.5 ± 4.7 | 210.4 | 226.2 | 1.19 ± 0.05 |
+| `awk` | 1307.1 ± 20.0 | 1289.3 | 1357.0 | 7.24 ± 0.26 |
+| `huniq` | 2338.3 ± 52.8 | 2257.4 | 2402.7 | 12.95 ± 0.51 |
+| `runiq` | 2413.4 ± 49.0 | 2358.7 | 2535.4 | 13.36 ± 0.51 |
+| `uq` | 2942.1 ± 56.0 | 2892.1 | 3068.6 | 16.29 ± 0.61 |
+| `unic` | 7915.2 ± 87.0 | 7807.9 | 8034.2 | 43.83 ± 1.49 |
