@@ -1,7 +1,9 @@
+mod cli;
+use cli::Args;
+
 use std::{
     cmp::Ordering,
-    fs::File,
-    io::{self, BufReader, BufWriter, Write, stdin, stdout},
+    io::{self, Write},
     usize,
 };
 
@@ -175,96 +177,6 @@ fn write_topk_flatcounts<W: Write>(wtr: &mut W, collection: FlatCounts, k: usize
 
     writer.flush()?;
     Ok(())
-}
-
-#[derive(Parser)]
-struct Args {
-    input: Option<String>,
-
-    output: Option<String>,
-
-    /// Skip counting and just write unique lines in the same order as input
-    #[clap(short = 'u', long)]
-    unique: bool,
-
-    /// Only include incoming entries that match a regex pattern
-    #[clap(short = 'i', long)]
-    include: Option<String>,
-
-    /// Exclude incoming entries that match a regex pattern
-    #[clap(short = 'e', long)]
-    exclude: Option<String>,
-
-    /// Filter out entries with abundance less than MIN
-    #[clap(short = 'm', long)]
-    min: Option<usize>,
-
-    /// Filter out entries with abundance greater than MAX
-    #[clap(short = 'M', long)]
-    max: Option<usize>,
-
-    /// Sort descending by abundance
-    #[clap(short = 'd', long)]
-    descending: bool,
-
-    /// Skip sorting
-    #[clap(short = 's', long, conflicts_with = "descending")]
-    skip_sorting: bool,
-
-    /// Sort by entry name
-    #[clap(short = 'n', long)]
-    sort_by_name: bool,
-
-    /// Shows the last-k entries and a count of the other entries
-    #[clap(short = 'k', long, conflicts_with_all = ["min", "max", "skip_sorting"])]
-    last_k: Option<usize>,
-}
-impl Args {
-    fn match_input(&self) -> Result<Box<dyn BufReadExt>> {
-        match &self.input {
-            Some(path) => {
-                let handle = File::open(path).map(BufReader::new)?;
-                Ok(Box::new(handle))
-            }
-            None => {
-                let handle = BufReader::new(stdin());
-                Ok(Box::new(handle))
-            }
-        }
-    }
-
-    fn match_output(&self) -> Result<Box<dyn Write>> {
-        match &self.output {
-            Some(path) => {
-                let handle = File::create(path).map(BufWriter::new)?;
-                Ok(Box::new(handle))
-            }
-            None => {
-                let handle = BufWriter::new(stdout());
-                Ok(Box::new(handle))
-            }
-        }
-    }
-
-    fn include_regex(&self) -> Result<Option<Regex>> {
-        if let Some(pattern) = &self.include {
-            Ok(Some(Regex::new(pattern)?))
-        } else {
-            Ok(None)
-        }
-    }
-
-    fn exclude_regex(&self) -> Result<Option<Regex>> {
-        if let Some(pattern) = &self.exclude {
-            Ok(Some(Regex::new(pattern)?))
-        } else {
-            Ok(None)
-        }
-    }
-
-    fn last_k(&self) -> usize {
-        self.last_k.unwrap_or(0)
-    }
 }
 
 fn main() -> Result<()> {
