@@ -47,6 +47,12 @@ hist <file> -d
 
 # show the last-k entries and a count of the other entries (lines + number of elements)
 hist <file> -k <k>
+
+# create histogram but skip sorting by value
+hist <file> -S
+
+# perform pattern substitution on incoming lines (regex compatible pattern matching)
+hist <file> -s <pattern> <replacement>
 ```
 
 ## Benchmarks
