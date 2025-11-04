@@ -2,6 +2,7 @@ mod cli;
 use cli::Args;
 
 use std::{
+    borrow::Cow,
     cmp::Ordering,
     io::{self, Write},
     usize,
@@ -17,6 +18,7 @@ use regex::bytes::Regex;
 type Set<'a> = HashSet<&'a [u8]>;
 type Map<'a> = HashMap<&'a [u8], usize>;
 type FlatCounts<'a> = Vec<(&'a [u8], usize)>;
+type Substitute<'a> = (Regex, &'a [u8]);
 
 fn build_map<'a, R: BufReadExt>(
     reader: &mut R,
@@ -24,6 +26,7 @@ fn build_map<'a, R: BufReadExt>(
     arena: &'a Bump,
     include: Option<Regex>,
     exclude: Option<Regex>,
+    substitutions: Option<&[Substitute<'_>]>,
 ) -> Result<()> {
     reader.for_byte_line(|line: &[u8]| {
         // exclude entries on regex match
@@ -40,15 +43,24 @@ fn build_map<'a, R: BufReadExt>(
             return Ok(true);
         }
 
+        // Perform pattern substitutions per line
+        let mut line = Cow::Borrowed(line);
+        if let Some(subs) = substitutions {
+            for (pat, rep) in subs {
+                let new_line = pat.replace_all(&line, *rep);
+                line = Cow::Owned(new_line.into_owned());
+            }
+        }
+
         // manual entry handling
-        match map.raw_entry_mut().from_key(line) {
+        match map.raw_entry_mut().from_key(line.as_ref()) {
             // exists - increment count
             RawEntryMut::Occupied(mut entry) => {
                 *entry.get_mut() += 1;
             }
             // new entry - allocate into arena and insert slice
             RawEntryMut::Vacant(entry) => {
-                let owned = arena.alloc_slice_copy(line);
+                let owned = arena.alloc_slice_copy(line.as_ref());
                 entry.insert(owned, 1);
             }
         }
@@ -64,6 +76,7 @@ fn stream_unique<R: BufReadExt, W: Write>(
     arena: &'_ Bump,
     include: Option<Regex>,
     exclude: Option<Regex>,
+    substitutions: Option<&[Substitute<'_>]>,
 ) -> Result<()> {
     let mut csv_writer = csv::Writer::from_writer(writer);
     let mut set = Set::default();
@@ -82,15 +95,24 @@ fn stream_unique<R: BufReadExt, W: Write>(
             return Ok(true);
         }
 
-        if !set.contains(line) {
-            let owned = arena.alloc_slice_copy(line);
+        // Perform pattern substitutions per line
+        let mut line = Cow::Borrowed(line);
+        if let Some(subs) = substitutions {
+            for (pat, rep) in subs {
+                let new_line = pat.replace_all(&line, *rep);
+                line = Cow::Owned(new_line.into_owned());
+            }
+        }
+
+        if !set.contains(line.as_ref()) {
+            let owned = arena.alloc_slice_copy(line.as_ref());
 
             // Safety: This is safe because we've already hashed the line into the set and it is not present
             unsafe {
                 set.insert_unique_unchecked(owned);
             }
 
-            let line_str = std::str::from_utf8(line).map_err(|e| io::Error::other(e))?;
+            let line_str = std::str::from_utf8(line.as_ref()).map_err(|e| io::Error::other(e))?;
             csv_writer.serialize(line_str)?;
         }
 
@@ -193,6 +215,7 @@ fn main() -> Result<()> {
             &arena,
             args.include_regex()?,
             args.exclude_regex()?,
+            args.substitutes()?.as_deref(),
         )?;
     } else {
         let mut map = Map::default();
@@ -203,6 +226,7 @@ fn main() -> Result<()> {
             &arena,
             args.include_regex()?,
             args.exclude_regex()?,
+            args.substitutes()?.as_deref(),
         )?;
 
         let sorted_collection =

@@ -3,11 +3,13 @@ use std::{
     io::{BufReader, BufWriter, Write, stdin, stdout},
 };
 
-use anyhow::Result;
+use anyhow::{Result, bail};
 
 use bstr::io::BufReadExt;
 use clap::Parser;
 use regex::bytes::Regex;
+
+use crate::Substitute;
 
 #[derive(Parser)]
 pub struct Args {
@@ -27,6 +29,10 @@ pub struct Args {
     #[clap(short = 'e', long)]
     pub exclude: Option<String>,
 
+    /// Substitute incoming entries that match a regex pattern with a replacement string
+    #[clap(short = 's', long, num_args = 2)]
+    pub substitute: Vec<String>,
+
     /// Filter out entries with abundance less than MIN
     #[clap(short = 'm', long)]
     pub min: Option<usize>,
@@ -40,7 +46,7 @@ pub struct Args {
     pub descending: bool,
 
     /// Skip sorting
-    #[clap(short = 's', long, conflicts_with = "descending")]
+    #[clap(short = 'S', long, conflicts_with = "descending")]
     pub skip_sorting: bool,
 
     /// Sort by entry name
@@ -96,5 +102,23 @@ impl Args {
 
     pub fn last_k(&self) -> usize {
         self.last_k.unwrap_or(0)
+    }
+
+    pub fn substitutes(&self) -> Result<Option<Vec<Substitute<'_>>>> {
+        if self.substitute.len() % 2 != 0 {
+            bail!(
+                "Incorrect number of arguments provided for substitutions. Expecting pairs of pattern and replacement: {:?}",
+                self.substitute
+            )
+        } else if self.substitute.is_empty() {
+            Ok(None)
+        } else {
+            let mut subs = Vec::new();
+            for chunk in self.substitute.chunks_exact(2) {
+                let pattern = Regex::new(&chunk[0])?;
+                subs.push((pattern, chunk[1].as_bytes()))
+            }
+            Ok(Some(subs))
+        }
     }
 }
