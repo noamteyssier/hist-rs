@@ -1,8 +1,10 @@
+mod cli;
+use cli::Args;
+
 use std::{
+    borrow::Cow,
     cmp::Ordering,
-    fs::File,
-    io::{self, BufReader, BufWriter, Write, stdin, stdout},
-    usize,
+    io::{self, Write},
 };
 
 use anyhow::Result;
@@ -15,6 +17,7 @@ use regex::bytes::Regex;
 type Set<'a> = HashSet<&'a [u8]>;
 type Map<'a> = HashMap<&'a [u8], usize>;
 type FlatCounts<'a> = Vec<(&'a [u8], usize)>;
+type Substitute<'a> = (Regex, &'a [u8]);
 
 fn build_map<'a, R: BufReadExt>(
     reader: &mut R,
@@ -22,6 +25,7 @@ fn build_map<'a, R: BufReadExt>(
     arena: &'a Bump,
     include: Option<Regex>,
     exclude: Option<Regex>,
+    substitutions: Option<&[Substitute<'_>]>,
 ) -> Result<()> {
     reader.for_byte_line(|line: &[u8]| {
         // exclude entries on regex match
@@ -38,15 +42,24 @@ fn build_map<'a, R: BufReadExt>(
             return Ok(true);
         }
 
+        // Perform pattern substitutions per line
+        let mut line = Cow::Borrowed(line);
+        if let Some(subs) = substitutions {
+            for (pat, rep) in subs {
+                let new_line = pat.replace_all(&line, *rep);
+                line = Cow::Owned(new_line.into_owned());
+            }
+        }
+
         // manual entry handling
-        match map.raw_entry_mut().from_key(line) {
+        match map.raw_entry_mut().from_key(line.as_ref()) {
             // exists - increment count
             RawEntryMut::Occupied(mut entry) => {
                 *entry.get_mut() += 1;
             }
             // new entry - allocate into arena and insert slice
             RawEntryMut::Vacant(entry) => {
-                let owned = arena.alloc_slice_copy(line);
+                let owned = arena.alloc_slice_copy(line.as_ref());
                 entry.insert(owned, 1);
             }
         }
@@ -62,6 +75,7 @@ fn stream_unique<R: BufReadExt, W: Write>(
     arena: &'_ Bump,
     include: Option<Regex>,
     exclude: Option<Regex>,
+    substitutions: Option<&[Substitute<'_>]>,
 ) -> Result<()> {
     let mut csv_writer = csv::Writer::from_writer(writer);
     let mut set = Set::default();
@@ -80,15 +94,24 @@ fn stream_unique<R: BufReadExt, W: Write>(
             return Ok(true);
         }
 
-        if !set.contains(line) {
-            let owned = arena.alloc_slice_copy(line);
+        // Perform pattern substitutions per line
+        let mut line = Cow::Borrowed(line);
+        if let Some(subs) = substitutions {
+            for (pat, rep) in subs {
+                let new_line = pat.replace_all(&line, *rep);
+                line = Cow::Owned(new_line.into_owned());
+            }
+        }
+
+        if !set.contains(line.as_ref()) {
+            let owned = arena.alloc_slice_copy(line.as_ref());
 
             // Safety: This is safe because we've already hashed the line into the set and it is not present
             unsafe {
                 set.insert_unique_unchecked(owned);
             }
 
-            let line_str = std::str::from_utf8(line).map_err(|e| io::Error::other(e))?;
+            let line_str = std::str::from_utf8(line.as_ref()).map_err(io::Error::other)?;
             csv_writer.serialize(line_str)?;
         }
 
@@ -133,8 +156,8 @@ fn write_flatcounts<W: Write>(
         .into_iter()
         .filter(|(_, value)| *value <= max && *value >= min)
         .try_for_each(|(key, value)| -> Result<()> {
-            let record: (usize, &str) = (value, std::str::from_utf8(&key)?);
-            writer.serialize(&record)?;
+            let record: (usize, &str) = (value, std::str::from_utf8(key)?);
+            writer.serialize(record)?;
             Ok(())
         })?;
     writer.flush()?;
@@ -158,113 +181,23 @@ fn write_topk_flatcounts<W: Write>(wtr: &mut W, collection: FlatCounts, k: usize
         .try_for_each(|(key, value)| -> Result<()> {
             // place the other sum record if it hasn't been written yet
             if !other_sum_written && value > other_sum {
-                writer.serialize(&other_sum_record)?;
+                writer.serialize(other_sum_record)?;
                 other_sum_written = true;
             }
 
             // write the current record
-            let record: (usize, &str) = (value, std::str::from_utf8(&key)?);
-            writer.serialize(&record)?;
+            let record: (usize, &str) = (value, std::str::from_utf8(key)?);
+            writer.serialize(record)?;
             Ok(())
         })?;
 
     // write the other sum record if it hasn't been written yet
     if !other_sum_written {
-        writer.serialize(&other_sum_record)?;
+        writer.serialize(other_sum_record)?;
     }
 
     writer.flush()?;
     Ok(())
-}
-
-#[derive(Parser)]
-struct Args {
-    input: Option<String>,
-
-    output: Option<String>,
-
-    /// Skip counting and just write unique lines in the same order as input
-    #[clap(short = 'u', long)]
-    unique: bool,
-
-    /// Only include incoming entries that match a regex pattern
-    #[clap(short = 'i', long)]
-    include: Option<String>,
-
-    /// Exclude incoming entries that match a regex pattern
-    #[clap(short = 'e', long)]
-    exclude: Option<String>,
-
-    /// Filter out entries with abundance less than MIN
-    #[clap(short = 'm', long)]
-    min: Option<usize>,
-
-    /// Filter out entries with abundance greater than MAX
-    #[clap(short = 'M', long)]
-    max: Option<usize>,
-
-    /// Sort descending by abundance
-    #[clap(short = 'd', long)]
-    descending: bool,
-
-    /// Skip sorting
-    #[clap(short = 's', long, conflicts_with = "descending")]
-    skip_sorting: bool,
-
-    /// Sort by entry name
-    #[clap(short = 'n', long)]
-    sort_by_name: bool,
-
-    /// Shows the last-k entries and a count of the other entries
-    #[clap(short = 'k', long, conflicts_with_all = ["min", "max", "skip_sorting"])]
-    last_k: Option<usize>,
-}
-impl Args {
-    fn match_input(&self) -> Result<Box<dyn BufReadExt>> {
-        match &self.input {
-            Some(path) => {
-                let handle = File::open(path).map(BufReader::new)?;
-                Ok(Box::new(handle))
-            }
-            None => {
-                let handle = BufReader::new(stdin());
-                Ok(Box::new(handle))
-            }
-        }
-    }
-
-    fn match_output(&self) -> Result<Box<dyn Write>> {
-        match &self.output {
-            Some(path) => {
-                let handle = File::create(path).map(BufWriter::new)?;
-                Ok(Box::new(handle))
-            }
-            None => {
-                let handle = BufWriter::new(stdout());
-                Ok(Box::new(handle))
-            }
-        }
-    }
-
-    fn include_regex(&self) -> Result<Option<Regex>> {
-        if let Some(pattern) = &self.include {
-            Ok(Some(Regex::new(pattern)?))
-        } else {
-            Ok(None)
-        }
-    }
-
-    fn exclude_regex(&self) -> Result<Option<Regex>> {
-        if let Some(pattern) = &self.exclude {
-            Ok(Some(Regex::new(pattern)?))
-        } else {
-            Ok(None)
-        }
-    }
-
-    fn last_k(&self) -> usize {
-        self.last_k.unwrap_or(0)
-    }
 }
 
 fn main() -> Result<()> {
@@ -281,6 +214,7 @@ fn main() -> Result<()> {
             &arena,
             args.include_regex()?,
             args.exclude_regex()?,
+            args.substitutes()?.as_deref(),
         )?;
     } else {
         let mut map = Map::default();
@@ -291,6 +225,7 @@ fn main() -> Result<()> {
             &arena,
             args.include_regex()?,
             args.exclude_regex()?,
+            args.substitutes()?.as_deref(),
         )?;
 
         let sorted_collection =
