@@ -105,7 +105,7 @@ impl Args {
     }
 
     pub fn substitutes(&self) -> Result<Option<Vec<Substitute<'_>>>> {
-        if self.substitute.len() % 2 != 0 {
+        if !self.substitute.len().is_multiple_of(2) {
             bail!(
                 "Incorrect number of arguments provided for substitutions. Expecting pairs of pattern and replacement: {:?}",
                 self.substitute

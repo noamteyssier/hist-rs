@@ -5,7 +5,6 @@ use std::{
     borrow::Cow,
     cmp::Ordering,
     io::{self, Write},
-    usize,
 };
 
 use anyhow::Result;
@@ -112,7 +111,7 @@ fn stream_unique<R: BufReadExt, W: Write>(
                 set.insert_unique_unchecked(owned);
             }
 
-            let line_str = std::str::from_utf8(line.as_ref()).map_err(|e| io::Error::other(e))?;
+            let line_str = std::str::from_utf8(line.as_ref()).map_err(io::Error::other)?;
             csv_writer.serialize(line_str)?;
         }
 
@@ -157,8 +156,8 @@ fn write_flatcounts<W: Write>(
         .into_iter()
         .filter(|(_, value)| *value <= max && *value >= min)
         .try_for_each(|(key, value)| -> Result<()> {
-            let record: (usize, &str) = (value, std::str::from_utf8(&key)?);
-            writer.serialize(&record)?;
+            let record: (usize, &str) = (value, std::str::from_utf8(key)?);
+            writer.serialize(record)?;
             Ok(())
         })?;
     writer.flush()?;
@@ -182,19 +181,19 @@ fn write_topk_flatcounts<W: Write>(wtr: &mut W, collection: FlatCounts, k: usize
         .try_for_each(|(key, value)| -> Result<()> {
             // place the other sum record if it hasn't been written yet
             if !other_sum_written && value > other_sum {
-                writer.serialize(&other_sum_record)?;
+                writer.serialize(other_sum_record)?;
                 other_sum_written = true;
             }
 
             // write the current record
-            let record: (usize, &str) = (value, std::str::from_utf8(&key)?);
-            writer.serialize(&record)?;
+            let record: (usize, &str) = (value, std::str::from_utf8(key)?);
+            writer.serialize(record)?;
             Ok(())
         })?;
 
     // write the other sum record if it hasn't been written yet
     if !other_sum_written {
-        writer.serialize(&other_sum_record)?;
+        writer.serialize(other_sum_record)?;
     }
 
     writer.flush()?;
