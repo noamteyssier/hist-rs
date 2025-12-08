@@ -3,15 +3,19 @@
 mod prepare_input;
 
 use std::process::{Command, Stdio};
+use std::time::Duration;
 
 use assert_cmd::cargo;
 use criterion::{Criterion, criterion_group, criterion_main};
 
-pub fn default_opts_benchmark(c: &mut Criterion) {
+pub fn default_opts_file_benchmark(c: &mut Criterion) {
+    let mut group = c.benchmark_group("default_opts file");
+    group.measurement_time(Duration::from_secs(30));
+    group.warm_up_time(Duration::from_secs(15));
     let input_data =
         prepare_input::InputData::new(1_000_000).expect("failed to generate input data");
     let path = input_data.path().to_path_buf();
-    c.bench_function("default_opts file 1M", |b| {
+    group.bench_function("1M", |b| {
         b.iter(|| {
             Command::new(cargo::cargo_bin!("hist"))
                 .arg(&path)
@@ -28,7 +32,8 @@ pub fn default_opts_benchmark(c: &mut Criterion) {
             err
         )
     });
+    group.finish();
 }
 
-criterion_group!(benches, default_opts_benchmark);
+criterion_group!(benches, default_opts_file_benchmark);
 criterion_main!(benches);
