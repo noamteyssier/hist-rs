@@ -1,3 +1,4 @@
+mod build_map_parallel;
 mod bump_bytesmap;
 
 mod cli;
