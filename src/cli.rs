@@ -63,6 +63,13 @@ pub struct Args {
     #[clap(short = 'T', long)]
     pub threads: Option<u64>,
 }
+
+/// Either a file or the stdin/stdout.
+pub enum MaybeFile {
+    File { path: String },
+    Stdio,
+}
+
 impl Args {
     pub fn match_input(&self) -> Result<Box<dyn BufReadExt>> {
         match &self.input {
@@ -74,6 +81,15 @@ impl Args {
                 let handle = BufReader::new(stdin());
                 Ok(Box::new(handle))
             }
+        }
+    }
+
+    pub fn match_file_input(&self) -> MaybeFile {
+        match &self.input {
+            Some(path) => MaybeFile::File {
+                path: path.to_owned(),
+            },
+            None => MaybeFile::Stdio,
         }
     }
 

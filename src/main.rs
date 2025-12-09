@@ -2,12 +2,13 @@ mod build_map_parallel;
 mod bump_bytesmap;
 
 mod cli;
-use cli::Args;
+use cli::{Args, MaybeFile};
 
 use std::{
     borrow::Cow,
     cmp::Ordering,
     io::{self, Write},
+    num::NonZeroU64,
 };
 
 use anyhow::Result;
@@ -205,12 +206,13 @@ fn write_topk_flatcounts<W: Write>(wtr: &mut W, collection: FlatCounts, k: usize
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    let mut in_handle = args.match_input()?;
-    let mut out_handle = args.match_output()?;
 
     let arena = Bump::new();
 
     if args.unique {
+        let mut in_handle = args.match_input()?;
+        let mut out_handle = args.match_output()?;
+
         stream_unique(
             &mut in_handle,
             &mut out_handle,
@@ -227,24 +229,58 @@ fn main() -> Result<()> {
         let max = args.max.unwrap_or(usize::MAX);
         let min = args.min.unwrap_or(0);
 
-        let mut map = Map::default();
+        match (args.match_file_input(), args.threads) {
+            (MaybeFile::Stdio, _) | (_, None) => {
+                let mut in_handle = args.match_input()?;
+                let mut out_handle = args.match_output()?;
 
-        build_map(
-            &mut in_handle,
-            &mut map,
-            &arena,
-            args.include_regex()?,
-            args.exclude_regex()?,
-            args.substitutes()?,
-        )?;
+                let mut map = Map::default();
+                build_map(
+                    &mut in_handle,
+                    &mut map,
+                    &arena,
+                    args.include_regex()?,
+                    args.exclude_regex()?,
+                    args.substitutes()?,
+                )?;
 
-        let sorted_collection = sort_collection(map, descending, skip_sorting, sort_by_name);
+                let sorted_collection =
+                    sort_collection(map, descending, skip_sorting, sort_by_name);
 
-        if last_k > 0 {
-            write_topk_flatcounts(&mut out_handle, sorted_collection, last_k)?;
-        } else {
-            write_flatcounts(&mut out_handle, sorted_collection, max, min)?;
-        }
+                if last_k > 0 {
+                    write_topk_flatcounts(&mut out_handle, sorted_collection, last_k)?;
+                } else {
+                    write_flatcounts(&mut out_handle, sorted_collection, max, min)?;
+                }
+            }
+            (MaybeFile::File { path }, Some(threads)) => {
+                let mut out_handle = args.match_output()?;
+
+                let threads = if threads == 0 {
+                    NonZeroU64::new(num_cpus::get() as u64).unwrap()
+                } else {
+                    NonZeroU64::new(threads).unwrap()
+                };
+                let worker_maps = build_map_parallel::build_maps(
+                    path,
+                    args.include_regex()?,
+                    args.exclude_regex()?,
+                    args.substitutes()?,
+                    threads,
+                )?;
+                let mut map = Map::default();
+                build_map_parallel::reduce_maps(&worker_maps, &mut map);
+
+                let sorted_collection =
+                    sort_collection(map, descending, skip_sorting, sort_by_name);
+
+                if last_k > 0 {
+                    write_topk_flatcounts(&mut out_handle, sorted_collection, last_k)?;
+                } else {
+                    write_flatcounts(&mut out_handle, sorted_collection, max, min)?;
+                }
+            }
+        };
     }
 
     Ok(())
