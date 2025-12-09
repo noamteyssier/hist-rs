@@ -4,6 +4,7 @@ use std::io::{self, BufWriter, Read, Seek, Write};
 use std::ops::Index;
 use std::path::Path;
 
+use hashbrown::HashMap;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 use rand_distr::{Distribution, Zipf};
@@ -79,7 +80,12 @@ fn sample_token_id(distribution: &impl Distribution<f64>, rng: &mut impl Rng) ->
 
 /// The input data as a temporary file.
 #[derive(Debug)]
-pub struct InputData(NamedTempFile);
+pub struct InputData {
+    tempfile: NamedTempFile,
+    // Used in integration tests.
+    #[allow(unused)]
+    pub groundtruth: HashMap<Vec<u8>, usize>,
+}
 
 impl InputData {
     /// Create a temp input data containing `lines` lines of random tokens.
@@ -89,36 +95,44 @@ impl InputData {
         let mut hex_buf = [0u8; TOKEN_LEN * 2];
         let mut rng = ChaCha12Rng::seed_from_u64(INIT_SEED);
         let vocab = VocabTable::new(&mut rng);
+        let mut groundtruth = HashMap::new();
         for _ in 0..lines {
             let token_id = sample_token_id(&zf, &mut rng);
             vocab.get_hex(token_id, &mut hex_buf);
             writer.write_all(&hex_buf)?;
             writer.write_all(b"\n")?;
+            groundtruth
+                .entry(hex_buf.to_vec())
+                .and_modify(|c| *c += 1)
+                .or_insert(1);
         }
         let mut file = writer.into_inner()?;
         file.rewind()?;
-        Ok(Self(file))
+        Ok(Self {
+            tempfile: file,
+            groundtruth,
+        })
     }
 
     /// Get the path to the temporary input data.
     pub fn path(&self) -> &Path {
-        &self.0.path()
+        &self.tempfile.path()
     }
 
     /// Close and clean up the temporary input data.
     pub fn close(self) -> io::Result<()> {
-        self.0.close()
+        self.tempfile.close()
     }
 }
 
 impl Read for InputData {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.0.read(buf)
+        self.tempfile.read(buf)
     }
 }
 
 impl Seek for InputData {
     fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
-        self.0.seek(pos)
+        self.tempfile.seek(pos)
     }
 }
