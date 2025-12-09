@@ -24,6 +24,7 @@ bumpalo = "3.19.0"
 clap = { version = "4.5.50", features = ["derive"] }
 csv = "1.4.0"
 hashbrown = "0.16.0"
+num_cpus = "1.17.0"
 regex = "1.12.2"
 
 [dev-dependencies]
