@@ -56,7 +56,20 @@ pub struct Args {
     /// Shows the last-k entries and a count of the other entries
     #[clap(short = 'k', long, conflicts_with_all = ["min", "max", "skip_sorting"])]
     last_k: Option<usize>,
+
+    /// Number of worker threads to use. Pass 0 to use as many processor cores as possible. Default
+    /// to not use any worker thread and run in the main thread only. Relevant only if the input is
+    /// a file (not stdin).
+    #[clap(short = 'T', long)]
+    pub threads: Option<u64>,
 }
+
+/// Either a file or the stdin/stdout.
+pub enum MaybeFile {
+    File { path: String },
+    Stdio,
+}
+
 impl Args {
     pub fn match_input(&self) -> Result<Box<dyn BufReadExt>> {
         match &self.input {
@@ -68,6 +81,15 @@ impl Args {
                 let handle = BufReader::new(stdin());
                 Ok(Box::new(handle))
             }
+        }
+    }
+
+    pub fn match_file_input(&self) -> MaybeFile {
+        match &self.input {
+            Some(path) => MaybeFile::File {
+                path: path.to_owned(),
+            },
+            None => MaybeFile::Stdio,
         }
     }
 
@@ -104,19 +126,22 @@ impl Args {
         self.last_k.unwrap_or(0)
     }
 
-    pub fn substitutes(&self) -> Result<Option<Vec<Substitute<'_>>>> {
-        if !self.substitute.len().is_multiple_of(2) {
+    pub fn substitutes(self) -> Result<Option<Vec<Substitute>>> {
+        let raw_substitutes = self.substitute;
+        if !raw_substitutes.len().is_multiple_of(2) {
             bail!(
                 "Incorrect number of arguments provided for substitutions. Expecting pairs of pattern and replacement: {:?}",
-                self.substitute
+                raw_substitutes
             )
-        } else if self.substitute.is_empty() {
+        } else if raw_substitutes.is_empty() {
             Ok(None)
         } else {
             let mut subs = Vec::new();
-            for chunk in self.substitute.chunks_exact(2) {
-                let pattern = Regex::new(&chunk[0])?;
-                subs.push((pattern, chunk[1].as_bytes()))
+            let mut iter = raw_substitutes.into_iter();
+            while let Some(arg) = iter.next() {
+                let pattern = Regex::new(&arg)?;
+                let repl = iter.next().unwrap();
+                subs.push((pattern, repl));
             }
             Ok(Some(subs))
         }

@@ -1,10 +1,14 @@
+mod build_map_parallel;
+mod bump_bytesmap;
+
 mod cli;
-use cli::Args;
+use cli::{Args, MaybeFile};
 
 use std::{
     borrow::Cow,
     cmp::Ordering,
     io::{self, Write},
+    num::NonZeroU64,
 };
 
 use anyhow::Result;
@@ -17,7 +21,7 @@ use regex::bytes::Regex;
 type Set<'a> = HashSet<&'a [u8]>;
 type Map<'a> = HashMap<&'a [u8], usize>;
 type FlatCounts<'a> = Vec<(&'a [u8], usize)>;
-type Substitute<'a> = (Regex, &'a [u8]);
+type Substitute = (Regex, String);
 
 fn build_map<'a, R: BufReadExt>(
     reader: &mut R,
@@ -25,7 +29,7 @@ fn build_map<'a, R: BufReadExt>(
     arena: &'a Bump,
     include: Option<Regex>,
     exclude: Option<Regex>,
-    substitutions: Option<&[Substitute<'_>]>,
+    substitutions: Option<Vec<Substitute>>,
 ) -> Result<()> {
     reader.for_byte_line(|line: &[u8]| {
         // exclude entries on regex match
@@ -44,9 +48,9 @@ fn build_map<'a, R: BufReadExt>(
 
         // Perform pattern substitutions per line
         let mut line = Cow::Borrowed(line);
-        if let Some(subs) = substitutions {
+        if let Some(subs) = &substitutions {
             for (pat, rep) in subs {
-                let new_line = pat.replace_all(&line, *rep);
+                let new_line = pat.replace_all(&line, rep.as_bytes());
                 line = Cow::Owned(new_line.into_owned());
             }
         }
@@ -75,7 +79,7 @@ fn stream_unique<R: BufReadExt, W: Write>(
     arena: &'_ Bump,
     include: Option<Regex>,
     exclude: Option<Regex>,
-    substitutions: Option<&[Substitute<'_>]>,
+    substitutions: Option<Vec<Substitute>>,
 ) -> Result<()> {
     let mut csv_writer = csv::Writer::from_writer(writer);
     let mut set = Set::default();
@@ -96,9 +100,9 @@ fn stream_unique<R: BufReadExt, W: Write>(
 
         // Perform pattern substitutions per line
         let mut line = Cow::Borrowed(line);
-        if let Some(subs) = substitutions {
+        if let Some(subs) = &substitutions {
             for (pat, rep) in subs {
-                let new_line = pat.replace_all(&line, *rep);
+                let new_line = pat.replace_all(&line, rep.as_bytes());
                 line = Cow::Owned(new_line.into_owned());
             }
         }
@@ -202,45 +206,81 @@ fn write_topk_flatcounts<W: Write>(wtr: &mut W, collection: FlatCounts, k: usize
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    let mut in_handle = args.match_input()?;
-    let mut out_handle = args.match_output()?;
 
     let arena = Bump::new();
 
     if args.unique {
+        let mut in_handle = args.match_input()?;
+        let mut out_handle = args.match_output()?;
+
         stream_unique(
             &mut in_handle,
             &mut out_handle,
             &arena,
             args.include_regex()?,
             args.exclude_regex()?,
-            args.substitutes()?.as_deref(),
+            args.substitutes()?,
         )?;
     } else {
-        let mut map = Map::default();
+        let descending = args.descending;
+        let skip_sorting = args.skip_sorting;
+        let sort_by_name = args.sort_by_name;
+        let last_k = args.last_k();
+        let max = args.max.unwrap_or(usize::MAX);
+        let min = args.min.unwrap_or(0);
 
-        build_map(
-            &mut in_handle,
-            &mut map,
-            &arena,
-            args.include_regex()?,
-            args.exclude_regex()?,
-            args.substitutes()?.as_deref(),
-        )?;
+        match (args.match_file_input(), args.threads) {
+            (MaybeFile::Stdio, _) | (_, None) => {
+                let mut in_handle = args.match_input()?;
+                let mut out_handle = args.match_output()?;
 
-        let sorted_collection =
-            sort_collection(map, args.descending, args.skip_sorting, args.sort_by_name);
+                let mut map = Map::default();
+                build_map(
+                    &mut in_handle,
+                    &mut map,
+                    &arena,
+                    args.include_regex()?,
+                    args.exclude_regex()?,
+                    args.substitutes()?,
+                )?;
 
-        if args.last_k() > 0 {
-            write_topk_flatcounts(&mut out_handle, sorted_collection, args.last_k())?;
-        } else {
-            write_flatcounts(
-                &mut out_handle,
-                sorted_collection,
-                args.max.unwrap_or(usize::MAX),
-                args.min.unwrap_or(0),
-            )?;
-        }
+                let sorted_collection =
+                    sort_collection(map, descending, skip_sorting, sort_by_name);
+
+                if last_k > 0 {
+                    write_topk_flatcounts(&mut out_handle, sorted_collection, last_k)?;
+                } else {
+                    write_flatcounts(&mut out_handle, sorted_collection, max, min)?;
+                }
+            }
+            (MaybeFile::File { path }, Some(threads)) => {
+                let mut out_handle = args.match_output()?;
+
+                let threads = if threads == 0 {
+                    NonZeroU64::new(num_cpus::get() as u64).unwrap()
+                } else {
+                    NonZeroU64::new(threads).unwrap()
+                };
+                let worker_maps = build_map_parallel::build_maps(
+                    path,
+                    args.include_regex()?,
+                    args.exclude_regex()?,
+                    args.substitutes()?,
+                    threads,
+                )?;
+                let mut map = Map::default();
+                build_map_parallel::reduce_maps(&worker_maps, &mut map);
+
+                let sorted_collection =
+                    sort_collection(map, descending, skip_sorting, sort_by_name);
+
+                if last_k > 0 {
+                    write_topk_flatcounts(&mut out_handle, sorted_collection, last_k)?;
+                } else {
+                    write_flatcounts(&mut out_handle, sorted_collection, max, min)?;
+                }
+            }
+        };
     }
 
     Ok(())
