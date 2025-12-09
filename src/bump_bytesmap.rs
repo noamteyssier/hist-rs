@@ -87,16 +87,14 @@ impl<T> BumpBytesMap<T> {
         }
     }
 
+    #[cfg(test)]
     pub fn get<'a>(&'a self, key: &[u8]) -> Option<&'a T> {
         self.map.get(key)
     }
 
+    #[cfg(test)]
     pub fn len(&self) -> usize {
         self.map.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.map.is_empty()
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&[u8], &T)> {
