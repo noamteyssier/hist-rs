@@ -110,19 +110,22 @@ impl Args {
         self.last_k.unwrap_or(0)
     }
 
-    pub fn substitutes(&self) -> Result<Option<Vec<Substitute<'_>>>> {
-        if !self.substitute.len().is_multiple_of(2) {
+    pub fn substitutes(self) -> Result<Option<Vec<Substitute>>> {
+        let raw_substitutes = self.substitute;
+        if !raw_substitutes.len().is_multiple_of(2) {
             bail!(
                 "Incorrect number of arguments provided for substitutions. Expecting pairs of pattern and replacement: {:?}",
-                self.substitute
+                raw_substitutes
             )
-        } else if self.substitute.is_empty() {
+        } else if raw_substitutes.is_empty() {
             Ok(None)
         } else {
             let mut subs = Vec::new();
-            for chunk in self.substitute.chunks_exact(2) {
-                let pattern = Regex::new(&chunk[0])?;
-                subs.push((pattern, chunk[1].as_bytes()))
+            let mut iter = raw_substitutes.into_iter();
+            while let Some(arg) = iter.next() {
+                let pattern = Regex::new(&arg)?;
+                let repl = iter.next().unwrap();
+                subs.push((pattern, repl));
             }
             Ok(Some(subs))
         }

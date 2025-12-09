@@ -10,8 +10,8 @@ use anyhow::Result;
 use bstr::io::BufReadExt;
 use regex::bytes::Regex;
 
-use crate::Map;
 use crate::bump_bytesmap::BumpBytesMap;
+use crate::{Map, Substitute};
 
 struct WorkerRanges<F> {
     reader: BufReader<F>,
@@ -76,7 +76,7 @@ fn build_map<R: BufReadExt>(
     reader: &mut R,
     include: Arc<Option<Regex>>,
     exclude: Arc<Option<Regex>>,
-    substitutions: Arc<Option<Vec<(Regex, String)>>>,
+    substitutions: Arc<Option<Vec<Substitute>>>,
 ) -> Result<BumpBytesMap> {
     let mut map = BumpBytesMap::new();
     reader.for_byte_line(|line: &[u8]| {
@@ -125,7 +125,7 @@ pub fn build_maps(
     file: String,
     include: Option<Regex>,
     exclude: Option<Regex>,
-    substitutions: Option<Vec<(Regex, String)>>,
+    substitutions: Option<Vec<Substitute>>,
     threads: NonZeroU64,
 ) -> Result<Vec<BumpBytesMap>> {
     let mut wr = WorkerRanges::new(File::open(&file)?, threads)?;
