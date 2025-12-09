@@ -1,3 +1,5 @@
+mod bump_bytesmap;
+
 mod cli;
 use cli::Args;
 
