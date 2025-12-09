@@ -56,6 +56,12 @@ pub struct Args {
     /// Shows the last-k entries and a count of the other entries
     #[clap(short = 'k', long, conflicts_with_all = ["min", "max", "skip_sorting"])]
     last_k: Option<usize>,
+
+    /// Number of worker threads to use. Pass 0 to use as many processor cores as possible. Default
+    /// to not use any worker thread and run in the main thread only. Relevant only if the input is
+    /// a file (not stdin).
+    #[clap(short = 'T', long)]
+    pub threads: Option<u64>,
 }
 impl Args {
     pub fn match_input(&self) -> Result<Box<dyn BufReadExt>> {
